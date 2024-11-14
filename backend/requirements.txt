@@ -1,0 +1,11 @@
+python-dotenv
+langchain
+langchain-pinecone
+langchain-community
+langchain-core
+pinecone 
+pinecone-client
+pathlib
+pandas
+fastapi
+uvicorn
