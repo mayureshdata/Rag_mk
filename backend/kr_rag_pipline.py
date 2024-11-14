@@ -115,7 +115,7 @@ chunk_documnets = text_spitter.split_documents(docsofpdf)
 # https://python.langchain.com/api_reference/openai/embeddings/langchain_openai.embeddings.base.OpenAIEmbeddings.html
 from langchain_openai import OpenAIEmbeddings
 # from langchain_community.embeddings import OpenAIEmbeddings # from Openai  some time give warning and above one is new
-from langchain_community.embeddings import OllamaEmbeddings # from facebook opensource
+# from langchain_community.embeddings import OllamaEmbeddings # from facebook opensource
 
 embeding = OpenAIEmbeddings()
 
@@ -126,7 +126,7 @@ vector_store_db = FAISS.from_documents(
     chunk_documnets,
     embedding=OpenAIEmbeddings(),
 )
-print(vector_store_db)
+print("\nvector_store_db",vector_store_db)
 
 
 # ++++++++++++++++++++++++++++++++++++ Searching from  vector Store +++++++++++++++++++++++++++++++++++++++++++++++++
@@ -143,20 +143,27 @@ reteievde_results_from_db = vector_store_db.similarity_search(query=query)
 from langchain_core.prompts import ChatPromptTemplate
 ## just search about hub is for ready made template
 
-prompt = ChatPromptTemplate.from_template("""
+prompt_template = ChatPromptTemplate.from_template("""
 Answer the following question based only on the provided context.
 Think step by step before providing a detailed answer.
-I will tip you $1000 if the user finds the answer helpful.
-<context>
 {context}
-</context>)
 Question:{input}
 """)
-print(prompt)
+print('\nprompt created by ChatPromptTemplate',prompt_template)
+
+###Set up a prompt template to use with the retrieval chain
+# system_template = "Answer the following question based only on the provided context. Think step by step before providing a detailed answer. {context}"
+# user_template = "User Query: {input}"
+
+# prompt_template = ChatPromptTemplate.from_messages([
+#     ("system", system_template),
+#     ("user", user_template)
+# ])
+
 
 # Stop execution here
-sys.exit()  # You can also use exit() or quit()
-sys.quit()  # You can also use exit() or quit()
+# sys.exit()  # You can also use exit() or quit()
+# sys.quit()  # You can also use exit() or quit()
 
 # ++++++++++++++++++++++++++++++++++++ Chaining +++++++++++++++++++++++++++++++++++++++++++++++++
 # from langchain_ollama import OllamaLLM installed https://python.langchain.com/api_reference/ollama/llms/langchain_ollama.llms.OllamaLLM.html#langchain_ollama.llms.OllamaLLM
@@ -165,12 +172,16 @@ from langchain_openai import OpenAI ## https://python.langchain.com/api_referenc
 # model = OllamaLLM(model="llama3")
 # model.invoke("Come up with 10 names for a song about parrots")
 llm = OpenAI(
+    # model="gpt-4o-mini",
     model="gpt-3.5-turbo",
     temperature=0.5,
-    max_retries=2,
+    # max_retries=2,
 )
-print(llm)
+print('\nllm used is -->',llm)
 
+from langchain_openai import ChatOpenAI
+
+model = ChatOpenAI(model="gpt-4o-mini")
 
 
 from langchain.chains.combine_documents import create_stuff_documents_chain
@@ -179,12 +190,13 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 An LCEL Runnable. The input is a dictionary that must have a “context” key that maps to a List[Document], and any other input variables expected in the prompt. The Runnable return type depends on output_parser used.'''
 
 ## making chain of prompt and llm
-Chainof_Documents = create_stuff_documents_chain(llm=llm,prompt=prompt)
-print(Chainof_Documents)
+Chainof_Documents = create_stuff_documents_chain(llm=model,prompt=prompt_template)
+print("\nChainof_Documents",Chainof_Documents)
 
 
 '''
 https://python.langchain.com/v0.1/docs/modules/data_connection/retrievers/
+https://python.langchain.com/v0.1/docs/modules/data_connection/retrievers/vectorstore/
 
 In LangChain, Retrievers are components that fetch relevant information or documents based on a user's query. They serve as intermediaries between the query and a data source, like a vector database (e.g., Pinecone), document store, or search index.
 
@@ -198,3 +210,28 @@ BM25 Retriever: Uses traditional keyword-based search algorithms for retrieving 
 MultiQuery Retriever: Generates multiple query variations to capture broader context and retrieve more comprehensive results.
 
 '''
+retriever = vector_store_db.as_retriever()
+print("\nretrievers -->>",retriever)
+
+
+
+'''
+Retrieval chain: This chain takes in a user inquiry, which is then
+passed to the retriever to fetch relevant documents. Those documents
+(and original inputs) are then passed to an LLM to generate a response
+https://python.langchain.com/docs/modules/chains/'''
+
+from langchain.chains import create_retrieval_chain
+retrieval_chain =  create_retrieval_chain(retriever,Chainof_Documents)
+
+'''here main thing is context in promptemplate set automatically 12:20 https://www.youtube.com/watch?v=CT3r0Eei9eU&list=PLTDARY42LDV6flFgQLJCcVSXXa58mZ9Ty&index=5&ab_channel=KrishNaikHindi'''
+
+# response = retrieval_chain
+# response = retrieval_chain.invoke({"input": "who is author?"})
+# print(response)
+query = 'who is Admiral Winters?'
+result = retrieval_chain.invoke({"input": query})
+print("\n'context'",result['context'])
+print("\n'input'",result['input'])
+print("\n'answer'",result['answer'])
+# print(result['answer'])

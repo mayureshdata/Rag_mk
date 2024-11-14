@@ -28,8 +28,8 @@ embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
 pc = Pinecone(PINECONE_API_KEY)
 
 # Initialize OpenAI LLM
-llm = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), model="gpt-3.5-turbo")
-# llm = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), model="gpt-4")
+# llm = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), model="gpt-3.5-turbo")
+llm = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), model="gpt-4")
 
 # Connect to the Pinecone index
 index = pc.Index(INDEX_NAME)
@@ -51,7 +51,7 @@ print(f'\nconnected to this index {INDEX_NAME} in pinecode database{vector_store
 # embeddings = Embeddings()  # Make sure Embeddings is properly configured
 # index = PineconeIndex()  # Ensure PineconeIndex is properly connected to Pinecone
 
-def read_and_load_csv(file_path, limit=10):
+def read_and_load_csv(file_path, limit=1000):
     """
     Reads a CSV file and returns the loaded documents, limited to a specific number of entries.
 
@@ -122,18 +122,6 @@ def ingest_data_to_pinecone(documents):
         except Exception as e:
             print(f"Error upserting document {doc.metadata.get('row', '')}: {e}")
 
-# # Main execution
-# if __name__ == "__main__":
-#     file_path = 'healthcare_dataset.csv'
-#     documents = read_and_load_csv(file_path)
-
-#     # Sort documents by billing amount (or any other desired field)
-#     sorted_documents = sort_documents(documents, sort_key="Billing Amount")
-    
-#     # Upsert sorted documents to Pinecone
-#     ingest_data_to_pinecone(sorted_documents)
-
-
 def retrieve_data_from_pinecone(user_query, top_k=5, metadata_filter=None):
     """
     Retrieves the most similar documents from Pinecone based on the user query.
@@ -183,6 +171,61 @@ def retrieve_data_from_pinecone(user_query, top_k=5, metadata_filter=None):
     except Exception as e:
         print(f"An error occurred during retrieval: {e}")
         return []
+
+# ==================================
+from langchain_core.prompts import ChatPromptTemplate
+## just search about hub is for ready made template
+
+prompt_template = ChatPromptTemplate.from_template("""
+Answer the following question based only on the provided context. mainly focued on the data set is for healthcare,
+Think step by step before providing a detailed answer.
+{context}
+Question:{input}
+""")
+print('\nprompt created by ChatPromptTemplate',prompt_template)
+
+from langchain_openai import ChatOpenAI
+from langchain_openai import OpenAI 
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain.chains import create_retrieval_chain
+
+model = ChatOpenAI(model="gpt-4o-mini")
+
+def generate_llm_response(retrieved_documents, user_query):
+    ## making chain of prompt and llm
+    Chainof_Documents = create_stuff_documents_chain(llm=model,prompt=prompt_template)
+    print("\nChainof_Documents",Chainof_Documents)
+    retriever = vector_store.as_retriever()
+    print("\nretrievers -->>",retriever)
+    retrieval_chain =  create_retrieval_chain(retriever,Chainof_Documents)
+    # query = 'who is Admiral Winters?'
+    result = retrieval_chain.invoke({"input": user_query,"context":retrieved_documents})
+    # result = retrieval_chain.invoke({"input": user_query,"context":retrieved_documents})
+    print("\n'context'",result['context'])
+    print("\n'input'",result['input'])
+    print("\n'answer'",result['answer'])
+    # print("\nresult",result)
+    return result['answer']   
+
+
+# # Main execution
+if __name__ == "__main__":
+    # file_path = 'healthcare_dataset.csv'
+    # documents = read_and_load_csv(file_path)
+
+    # Sort documents by billing amount (or any other desired field)
+    # sorted_documents = sort_documents(documents, sort_key="Billing Amount")
+    
+    # Upsert sorted documents to Pinecone
+    # ingest_data_to_pinecone(sorted_documents)
+
+
+    user_query="what is medial problem to KAREn johnsoN?"
+    results = retrieve_data_from_pinecone(user_query, top_k=5)
+    generate_llm_response(results,user_query)
+
+
+
 
 
 # from langchain_openai import ChatOpenAI
@@ -268,6 +311,37 @@ def retrieve_data_from_pinecone(user_query, top_k=5, metadata_filter=None):
     # print(output)
     
   
+# # ==================================
+# from langchain_core.prompts import ChatPromptTemplate
+# ## just search about hub is for ready made template
+
+# prompt_template = ChatPromptTemplate.from_template("""
+# Answer the following question based only on the provided context.
+# Think step by step before providing a detailed answer.
+# {context}
+# Question:{input}
+# """)
+# print('\nprompt created by ChatPromptTemplate',prompt_template)
+
+# from langchain_openai import ChatOpenAI
+# from langchain_openai import OpenAI 
+# from langchain.chains.combine_documents import create_stuff_documents_chain
+# from langchain.chains import create_retrieval_chain
+
+# model = ChatOpenAI(model="gpt-4o-mini")
+# def generate_llm_response(retrieved_documents, user_query):
+#     ## making chain of prompt and llm
+#     Chainof_Documents = create_stuff_documents_chain(llm=model,prompt=prompt_template)
+#     print("\nChainof_Documents",Chainof_Documents)
+#     retriever = vector_store.as_retriever()
+#     print("\nretrievers -->>",retriever)
+#     retrieval_chain =  create_retrieval_chain(retriever,Chainof_Documents)
+#     # query = 'who is Admiral Winters?'
+#     result = retrieval_chain.invoke({"input": user_query})
+#     print("\nresult['answer']",result['answer'])
+#     # print("\nresult",result)
+#     return result['answer']
+# ==================================
 # ==================================
 # def generate_llm_response(retrieved_documents, user_query):
 #     # Ensure the retrieved_documents are in the correct format
@@ -340,16 +414,16 @@ def retrieve_data_from_pinecone(user_query, top_k=5, metadata_filter=None):
 
 
 
-# Usage example
-if __name__ == "__main__":
-    # user_query = "Find patients with blood cancer admitted in 2020 and what is name of patients"  # Example user query
-    # metadata_filter = {"medical_condition": "Cancer", "admission_date": {"$gte": "2024-01-01"}}  # Optional filter
-    # results = retrieve_data_from_pinecone(user_query, top_k=5, metadata_filter=metadata_filter)
-    user_query="how many patients are admited"
-    results = retrieve_data_from_pinecone(user_query, top_k=5)
-    # generate_llm_response(results)
-    generate_response(results,user_query)
-    # generate_llm_response(results, user_query)
-    # Display results
-    # for result in results:
-    #     print(f"ID: {result['id']}, Score: {result['score']}, Metadata: {result['metadata']}")
+# # Usage example
+# if __name__ == "__main__":
+#     # user_query = "Find patients with blood cancer admitted in 2020 and what is name of patients"  # Example user query
+#     # metadata_filter = {"medical_condition": "Cancer", "admission_date": {"$gte": "2024-01-01"}}  # Optional filter
+#     # results = retrieve_data_from_pinecone(user_query, top_k=5, metadata_filter=metadata_filter)
+#     user_query="how many patients of the diabetis and give the cure of it?"
+#     results = retrieve_data_from_pinecone(user_query, top_k=5)
+#     generate_llm_response(results,user_query)
+#     # generate_response(results,user_query)
+#     # generate_llm_response(results, user_query)
+#     # Display results
+#     # for result in results:
+#     #     print(f"ID: {result['id']}, Score: {result['score']}, Metadata: {result['metadata']}")
