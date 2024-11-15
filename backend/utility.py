@@ -51,7 +51,7 @@ print(f'\nconnected to this index {INDEX_NAME} in pinecode database{vector_store
 # embeddings = Embeddings()  # Make sure Embeddings is properly configured
 # index = PineconeIndex()  # Ensure PineconeIndex is properly connected to Pinecone
 
-def read_and_load_csv(file_path, limit=1000):
+def read_and_load_csv(file_path, limit=5):
     """
     Reads a CSV file and returns the loaded documents, limited to a specific number of entries.
 
@@ -97,17 +97,61 @@ def ingest_data_to_pinecone(documents):
         try:
             # Generate embedding for the document's content
             embedding = embeddings.embed_query(doc.page_content)
-
+            print(doc)
             # Prepare structured metadata from page content
+            # metadata = {
+            #     "name": doc.page_content.split("\n")[0].split(": ")[1],  # Extract Name
+            #     "age": int(doc.page_content.split("\n")[1].split(": ")[1]),  # Extract Age
+            #     "medical_condition": doc.page_content.split("Medical Condition: ")[1].split("\n")[0],
+            #     "admission_date": doc.page_content.split("Date of Admission: ")[1].split("\n")[0],
+            #     "billing_amount": float(doc.page_content.split("Billing Amount: ")[1].split("\n")[0]),
+            #     "row": doc.metadata["row"]
+            # }
+
+
+            # Safely parse the page content
+            content_lines = doc.page_content.split("\n")
             metadata = {
-                "name": doc.page_content.split("\n")[0].split(": ")[1],  # Extract Name
-                "age": int(doc.page_content.split("\n")[1].split(": ")[1]),  # Extract Age
-                "medical_condition": doc.page_content.split("Medical Condition: ")[1].split("\n")[0],
-                "admission_date": doc.page_content.split("Date of Admission: ")[1].split("\n")[0],
-                "billing_amount": float(doc.page_content.split("Billing Amount: ")[1].split("\n")[0]),
-                "row": doc.metadata["row"]
+            "text": {
+                "name": content_lines[0].split(": ")[1].strip(),
+                "age": int(content_lines[1].split(": ")[1].strip()),
+                "gender": content_lines[2].split(": ")[1].strip(),
+                "blood_type": content_lines[3].split(": ")[1].strip(),
+                "medical_condition": content_lines[4].split(": ")[1].strip(),
+                "admission_date": content_lines[5].split(": ")[1].strip(),
+                "doctor": content_lines[6].split(": ")[1].strip(),
+                "hospital": content_lines[7].split(": ")[1].strip(),
+                "insurance_provider": content_lines[8].split(": ")[1].strip(),
+                "billing_amount": float(content_lines[9].split(": ")[1].strip()),
+                "room_number": content_lines[10].split(": ")[1].strip(),
+                "admission_type": content_lines[11].split(": ")[1].strip(),
+                "discharge_date": content_lines[12].split(": ")[1].strip(),
+                "medication": content_lines[13].split(": ")[1].strip(),
+                "test_results": content_lines[14].split(": ")[1].strip(),
+                "row": doc.metadata.get("row"),
+                "source": doc.metadata.get("source")
+                }
             }
 
+            # metadata = {
+            # "name": content_lines[0].split(": ")[1].strip(),
+            # "age": int(content_lines[1].split(": ")[1].strip()),
+            # "gender": content_lines[2].split(": ")[1].strip(),
+            # "blood_type": content_lines[3].split(": ")[1].strip(),
+            # "medical_condition": content_lines[4].split(": ")[1].strip(),
+            # "admission_date": content_lines[5].split(": ")[1].strip(),
+            # "doctor": content_lines[6].split(": ")[1].strip(),
+            # "hospital": content_lines[7].split(": ")[1].strip(),
+            # "insurance_provider": content_lines[8].split(": ")[1].strip(),
+            # "billing_amount": float(content_lines[9].split(": ")[1].strip()),
+            # "room_number": content_lines[10].split(": ")[1].strip(),
+            # "admission_type": content_lines[11].split(": ")[1].strip(),
+            # "discharge_date": content_lines[12].split(": ")[1].strip(),
+            # "medication": content_lines[13].split(": ")[1].strip(),
+            # "test_results": content_lines[14].split(": ")[1].strip(),
+            # "row": doc.metadata.get("row"),
+            # "source": doc.metadata.get("source")
+            # }
             # Prepare data for upsert
             upsert_data = {
                 "id": str(doc.metadata.get("row", "")),  # Unique identifier
@@ -146,7 +190,8 @@ def retrieve_data_from_pinecone(user_query, top_k=5, metadata_filter=None):
             include_metadata=True  # Ensures metadata is returned with the results
         )
         # print('query_response',query_response)
-        return query_response
+        return [match['metadata'] for match in query_response['matches']]
+        # return query_response
         # results = index.query(vector=query_embedding, top_k=5, include_metadata=True)
         # print('\n\nresults',results)
         # return [match['metadata'] for match in results['matches']]
@@ -176,13 +221,23 @@ def retrieve_data_from_pinecone(user_query, top_k=5, metadata_filter=None):
 from langchain_core.prompts import ChatPromptTemplate
 ## just search about hub is for ready made template
 
-prompt_template = ChatPromptTemplate.from_template("""
-Answer the following question based only on the provided context. mainly focued on the data set is for healthcare,
-Think step by step before providing a detailed answer.
-{context}
-Question:{input}
-""")
-print('\nprompt created by ChatPromptTemplate',prompt_template)
+# prompt_template = ChatPromptTemplate.from_template("""You are an AI healthcare assistant. Use the information provided in the context to answer the user’s question thoroughly and accurately. Approach the answer step-by-step to ensure completeness and clarity.
+                                                   
+# Context Information:
+# {context}
+
+# User Question:
+# {input}
+
+# Please provide a detailed and insightful response:""")
+# print('\nprompt created by ChatPromptTemplate',prompt_template)
+# prompt_template = ChatPromptTemplate.from_template("""
+# Answer the following question based only on the provided context. mainly focued on the data set is for healthcare,
+# Think step by step before providing a detailed answer.
+# {context}
+# Question:{input}
+# """)
+# print('\nprompt created by ChatPromptTemplate',prompt_template)
 
 from langchain_openai import ChatOpenAI
 from langchain_openai import OpenAI 
@@ -191,38 +246,68 @@ from langchain.chains import create_retrieval_chain
 
 model = ChatOpenAI(model="gpt-4o-mini")
 
+# def generate_llm_response(retrieved_documents, user_query):
+#     ## making chain of prompt and llm
+#     Chainof_Documents = create_stuff_documents_chain(llm=model,prompt=prompt_template)
+#     print("\nChainof_Documents",Chainof_Documents)
+#     retriever = vector_store.as_retriever()
+#     print("\nretrievers -->>",retriever)
+#     retrieval_chain =  create_retrieval_chain(retriever,Chainof_Documents)
+#     # query = 'who is Admiral Winters?'
+#     result = retrieval_chain.invoke({"input": user_query,"context":retrieved_documents})
+#     # result = retrieval_chain.invoke({"input": user_query,"context":retrieved_documents})
+#     print("\n'context'",result['context'])
+#     print("\n'input'",result['input'])
+#     print("\n'answer'",result['answer'])
+#     # print("\nresult",result)
+#     return result['answer']   
+
 def generate_llm_response(retrieved_documents, user_query):
     ## making chain of prompt and llm
+    prompt_template = ChatPromptTemplate.from_template("""You are an AI healthcare assistant. Use the information provided in the context to answer the user’s question thoroughly and accurately. Approach the answer step-by-step to ensure completeness and clarity.
+                                                   
+    Context Information:
+    {context}
+
+    User Question:
+    {input}
+
+    Please provide a detailed and insightful response:""")
+    print('\nprompt created by ChatPromptTemplate',prompt_template)
+
     Chainof_Documents = create_stuff_documents_chain(llm=model,prompt=prompt_template)
     print("\nChainof_Documents",Chainof_Documents)
     retriever = vector_store.as_retriever()
     print("\nretrievers -->>",retriever)
     retrieval_chain =  create_retrieval_chain(retriever,Chainof_Documents)
     # query = 'who is Admiral Winters?'
-    result = retrieval_chain.invoke({"input": user_query,"context":retrieved_documents})
-    # result = retrieval_chain.invoke({"input": user_query,"context":retrieved_documents})
-    print("\n'context'",result['context'])
-    print("\n'input'",result['input'])
-    print("\n'answer'",result['answer'])
-    # print("\nresult",result)
-    return result['answer']   
-
+    try:
+        result = retrieval_chain.invoke({"input": user_query, "context": retrieved_documents})
+        print("\nContext provided:", retrieved_documents)
+        print("\nInput query:", result['input'])
+        print("\nGenerated answer:", result['answer'])
+        return result['answer']
+    except Exception as e:
+        print(f"Error during retrieval or response generation: {e}")
+        return "An error occurred while generating the response."
 
 # # Main execution
 if __name__ == "__main__":
     # file_path = 'healthcare_dataset.csv'
-    # documents = read_and_load_csv(file_path)
-
+    documents = read_and_load_csv(file_path)
+    # print(documents)
     # Sort documents by billing amount (or any other desired field)
-    # sorted_documents = sort_documents(documents, sort_key="Billing Amount")
+    sorted_documents = sort_documents(documents, sort_key="name")
     
     # Upsert sorted documents to Pinecone
-    # ingest_data_to_pinecone(sorted_documents)
+    ingest_data_to_pinecone(sorted_documents)
 
 
     user_query="what is medial problem to KAREn johnsoN?"
-    results = retrieve_data_from_pinecone(user_query, top_k=5)
-    generate_llm_response(results,user_query)
+    user_query1="how many paetient have bllod group a-"
+    results = retrieve_data_from_pinecone(user_query1, top_k=5)
+    # print('xxxxxx',results)
+    generate_llm_response(results,user_query1)
 
 
 

@@ -158,3 +158,71 @@ if __name__ == "__main__":
     
     # if documents:
     #     ingest_data_to_pinecone(documents)
+
+
+'''
+
+https://chatgpt.com/share/6736e691-7c8c-8000-844c-98dbc534f957
+
+import os
+from dotenv import load_dotenv
+from langchain_openai import OpenAIEmbeddings
+from langchain.vectorstores import Pinecone
+from langchain_community.document_loaders.csv_loader import CSVLoader
+import hashlib
+from pinecone import Pinecone
+
+# Step 1: Load environment variables
+load_dotenv()
+
+# Step 2: Initialize API keys and Pinecone client
+API_KEY = os.getenv("API_KEY")
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+INDEX_NAME = "documents"
+pc = Pinecone(PINECONE_API_KEY)
+
+# Step 3: Define utility functions for processing
+def generate_content_hash(content):
+    return hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+def load_csv_data(file_path):
+    loader = CSVLoader(file_path=file_path)
+    documents = loader.load()
+    return documents
+
+def preprocess_content(content):
+    # Remove special chars, normalize text, etc.
+    return content
+
+# Step 4: Embed, index, and store documents
+def process_and_upsert_documents(documents, vector_store):
+    for doc in documents:
+        content = preprocess_content(doc.page_content)
+        content_hash = generate_content_hash(content)
+
+        # Check if document already exists
+        if check_if_content_exists(content_hash):
+            print(f"Document with hash {content_hash} already exists. Skipping.")
+            continue
+
+        # Generate embedding
+        embedding = embeddings.embed_query(content)
+        
+        # Prepare metadata
+        metadata = {
+            "content_hash": content_hash,
+            "source": "CSV",
+            "additional_field": doc.metadata.get("field_name")
+        }
+
+        # Upsert embedding with metadata
+        vector_store.upsert(id=content_hash, embedding=embedding, metadata=metadata)
+
+# Execution
+if __name__ == "__main__":
+    # Load, process, and upsert documents
+    documents = load_csv_data("data.csv")
+    process_and_upsert_documents(documents, vector_store)
+
+
+'''
