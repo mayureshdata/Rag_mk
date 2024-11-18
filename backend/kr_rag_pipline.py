@@ -21,7 +21,8 @@ docsoftxt = loader.load()
 from langchain_community.document_loaders import WebBaseLoader
 import bs4
 # load , chunk and index the content from html page
-loader =WebBaseLoader(web_path=("https://lilianweng.github.io/posts/2023-06-23-agent/",),bs_kwargs=dict(parse_only=bs4.SoupStrainer(class_=("post-title","post-content","post-header"))))
+loader =WebBaseLoader(web_path=("https://www.pinecone.io/learn/retrieval-augmented-generation/",),bs_kwargs=dict(parse_only=bs4.SoupStrainer(class_=("post-title","post-content","post-header"))))
+# loader =WebBaseLoader(web_path=("https://lilianweng.github.io/posts/2023-06-23-agent/",),bs_kwargs=dict(parse_only=bs4.SoupStrainer(class_=("post-title","post-content","post-header"))))
 # understand "post_title","post_content","post-header" this is classname in html that we want to pickup or scrap
 docsodweb = loader.load()
 # print(docs)
@@ -106,7 +107,8 @@ with the Devil himself. As soon as our neighbors shut the door or turned the
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 text_spitter = RecursiveCharacterTextSplitter(chunk_size=1000,chunk_overlap=200)
-chunk_documnets = text_spitter.split_documents(docsofpdf)
+chunk_documnets_pdf = text_spitter.split_documents(docsofpdf)
+chunk_documnets_web = text_spitter.split_documents(docsofweb)
 # print(chunk_documnets)
 
 
